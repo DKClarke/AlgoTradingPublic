@@ -23,6 +23,7 @@ import quandl
 import http.client, urllib.parse
 import requests
 import os
+import json
 
 from extremaFuncs import getLabelledExtrema, getExtremaToDrop, optimiseTpOscillator, normaliseTpOsc
 
@@ -39,20 +40,23 @@ def getHistoricalIntradayResponse(symbol, interval, date_to):
     '''
     
     # Connect to our API source
-    conn = http.client.HTTPSConnection('api.stockdata.org')
-    
-    # Parse the parameters appropriately
-    params = urllib.parse.urlencode({
-        'api_token': 'ThzrH4mTBYEGhC49fJ1BqaeURR8zIxqhTLVXfgPd'
-        , 'symbols': symbol
-        , 'interval': interval
-        , 'date_to': str(date_to.strftime('%Y-%m-%d'))
-        })
-    
-    # Get the response from the API
-    response = requests.get('https://api.stockdata.org/v1/data/intraday?{}'.format(params))
-    data = response.json()
-    
+    with http.client.HTTPSConnection('api.stockdata.org') as conn:
+
+        with open('credentials.json', 'r') as j:
+            api_key = json.loads(j.read())
+        
+            # Parse the parameters appropriately
+            params = urllib.parse.urlencode({
+                'api_token': api_key
+                , 'symbols': symbol
+                , 'interval': interval
+                , 'date_to': str(date_to.strftime('%Y-%m-%d'))
+                })
+            
+            # Get the response from the API
+            response = requests.get('https://api.stockdata.org/v1/data/intraday?{}'.format(params))
+            data = response.json()
+        
     # Return the data formatted in a dataframe
     return pd.json_normalize(data['data'])
 

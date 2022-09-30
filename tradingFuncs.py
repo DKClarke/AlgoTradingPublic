@@ -126,15 +126,11 @@ def getDataArgs(trainData, valData, extremaFilter, lookbackWindow, intraHyperPar
         lastClosePrice = valData['Close'].iloc[-1]
 
         metaDict['tradingEnd'] = (firstOpenPrice, lastClosePrice)
-
-        # Generate the instance of our SVR
-        svr = svm.SVR(kernel = 'rbf')
-        svr.fit(X_train, y_train)
         
         argsList = [
             {
             #'modelParams':{'C':x[0], 'epsilon':x[1]}
-          'model': svr.set_params(C = x[0], epsilon = x[1])
+          'model': svm.SVR(kernel = 'rbf').set_params(C = x[0], epsilon = x[1]).fit(X_train, y_train)
           #, 'X_train': X_train
           #, 'y_train': y_train
           , 'X_val': X_val
@@ -206,7 +202,8 @@ def getModelData(model, X_val, valDates, dataPred, ThighRaw, TlowRaw, metaData):
 def getStratData(buyPoint, sellPoint, predicted):
     '''
     Function takes thresholds for when we want to buy and sell, our predictions, and our share data
-    and returns a tradeStrategyOld object
+    and returns a dictionary of the indices of predicted where we want to buy and sell, as well as a dictionary
+    containing the input arguments (buyPoint and sellPoint).
     
     Args:
     buyPoint -- float
@@ -384,6 +381,12 @@ def getStratDataOld(buyPoint, sellPoint, predicted, data, metaDictRaw):
     )
 
 def getStratResults(currArgs):
+    '''
+    This function runs on the output of getDataArgs(). It constructs a tradeStrategy object for every combination of
+    buy and sell thresholds that are reasonable for the prediction values produced by using inputs from getDataArgs().
+
+    Input args: output args from getDataArgs().
+    '''
     
     data = currArgs['dataPred']
 
@@ -412,13 +415,16 @@ def getStratResults(currArgs):
 
     valDates = currArgs['valDates']
 
+    # Get a dictionary of buy and sell indices for every combination of Thigh and Tlow
     resultsList = [getStratData(y[1], y[0], predicted) for y in paramListThreshClean]
     resultsListClean = [x for x in resultsList if x is not None]
 
+    # Get the unique list of buying and selling indices
     comboIdxList = [x['buyDates'] + x['sellDates'] for x in resultsListClean]
     comboIdxUnique = np.unique(comboIdxList, return_index = True)[1]
     distinctIdx = [resultsListClean[x] for x in comboIdxUnique]
     
+    # For each unique combination of buy/sell dates, generated a tradeStrategy object
     tradeStrategyList = list()
     for combo in distinctIdx:
 
@@ -437,6 +443,7 @@ def getStratResults(currArgs):
 
         tradeStrategyList.append(tradeStrategy(**dataDict))
 
+    # Add the contents of the metaData passed to this function to the metaData in each element of our tradeStrategyList
     [x.metaData.update(currArgs['metaData']) for x in tradeStrategyList]
         
     return tradeStrategyList

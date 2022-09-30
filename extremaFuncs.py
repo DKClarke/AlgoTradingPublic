@@ -137,7 +137,7 @@ def getWorstAdjacentExtrema(data, extremaType, indices):
     '''
     Function takes a 1D np array, a string value for the type of local extrema this data contains,
     and the indices these data are derived from.
-    Returns a dict containing the index of the extrema that are lesser.
+    Returns a dict containing the index of the extrema that are less extreme than the most extreme point.
 
     Keyword arguments:
     data -- 1D np array
@@ -176,7 +176,7 @@ def getWorstAdjacentExtrema(data, extremaType, indices):
 
 def getSequentialExtrema(filteredDf):
     '''
-    Function takes a pd DF containing only extrema
+    Function takes a pd DF containing only extrema from getLabelledExtrema
     Returns a list of tupples which for each sequence of identical extrema (i.e. multiple peaks or troughs)
     contains the data, extremaType, and indices of these extrema
 
