@@ -38,94 +38,25 @@ def getHistoricalIntradayResponse(symbol, interval, date_to):
     interval -- string, minute | hour | day | week | month | quarter | year
     date_to -- string
     '''
-    
-    # Connect to our API source
-    with http.client.HTTPSConnection('api.stockdata.org') as conn:
 
-        with open('credentials.json', 'r') as j:
-            api_key = json.loads(j.read())
+    with open('credentials.json', 'r') as j:
+        api_key = json.loads(j.read())
+
+        # Parse the parameters appropriately
+        params = urllib.parse.urlencode({
+            'api_token': api_key['api_stockdata_key']
+            , 'symbols': symbol
+            , 'interval': interval
+            , 'date_to': str(date_to.strftime('%Y-%m-%d'))
+            })
         
-            # Parse the parameters appropriately
-            params = urllib.parse.urlencode({
-                'api_token': api_key
-                , 'symbols': symbol
-                , 'interval': interval
-                , 'date_to': str(date_to.strftime('%Y-%m-%d'))
-                })
-            
-            # Get the response from the API
-            response = requests.get('https://api.stockdata.org/v1/data/intraday?{}'.format(params))
-            data = response.json()
+        # Get the response from the API
+        response = requests.get('https://api.stockdata.org/v1/data/intraday?{}'.format(params))
+        data = response.json()
         
     # Return the data formatted in a dataframe
     return pd.json_normalize(data['data'])
-
-def getHistoricalIntraday(symbol, startDate, endDate, interval = 'minute'):
-    '''
-    Function takes a ticker symbol, a start and end date (as datetime objects) and a time interval 
-    (minute, hour, day etc.) and queries stockdata.org for intraday data between the start and end dates.
-    https://www.stockdata.org/documentation
     
-    Currently only support interval of minute or hour
-    
-    symbol -- string, stock ticker
-    startDate -- date object e.g. date(2020,6,10)
-    endDate --  date object
-    interval -- string, minute | hour | day | week | month | quarter | year
-    '''
-    
-    if interval not in ['minute', 'hour']:
-        
-        raise ValueError('Interval not currently supported')
-        
-    if endDate <= startDate:
-        
-        raise ValueError('endDate specified is earlier or equal to startDate')
-    
-    # If the user wants per minute prices, each request gets 7 days of data, so create
-    # a list of dates to retrieve where each is separated by 8 days
-    if interval == 'minute':
-        frequency = '8d'
-        
-    # For hour, this is 180 days, so separate by 181d
-    elif interval == 'hour':
-        frequency = '181d'
-    
-    # Create our date range
-    dateRange = pd.date_range(startDate, endDate, freq=frequency)
-    
-    # Compute our start and end dates in a printing friendly format
-    startDatePrint = min(dateRange).strftime('%Y-%m-%d')
-    endDatePrint = max(dateRange).strftime('%Y-%m-%d')
-    
-    # Create a folder path for saving our data
-    folder = f'{symbol}_{startDatePrint}_{endDatePrint}_{interval}_historical_intraday'
-
-    # If the folder doesn't exist, make it
-    if not os.path.exists(folder):
-        print('Made folder')
-        os.mkdir(folder)
-    
-    # For each date to query the API for
-    for currentDate in dateRange:
-        
-        # Generate a filename for what we would save the data as
-        printDate = currentDate.strftime('%Y-%m-%d')
-        title = (f'{symbol}_{printDate}_{interval}_historical_intraday.csv')
-        savePath = os.path.join(folder, title)
-        
-        # If we haven't already saved that data
-        if not os.path.exists(savePath):
-            
-            # Query, retrieve the data, save it
-            print(f'Fetched data for {currentDate}')
-            data = getHistoricalIntradayResponse(symbol, 'minute', currentDate)
-
-            data.to_csv(savePath)
-
-    return symbol, startDatePrint, endDatePrint, interval
-    
-
 def getFFTAmplitudePhase(data):
     '''
     Function takes an array of data and returns the amplitude and phases of the discrete
