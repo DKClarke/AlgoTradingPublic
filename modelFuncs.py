@@ -386,7 +386,7 @@ def fitModelHyperParams(C, epsilon, gamma):
     Generates an instance of an epsilon SVR model with a rbf kernel fit with the passed hyperparameters
 
     Keyword arguments:
-    C -- the value of to fit to the SVR
+    C -- the value of C to fit to the SVR
     epsilon -- the value of epsilon to fit to the SVR
     gamma -- the value of gamma to fit to the SVR
     '''
