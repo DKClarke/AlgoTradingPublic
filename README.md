@@ -6,12 +6,13 @@ Turning Point Oscillator - this is what we use as our prediction target. This os
 peak (1). We then use Support Vector Regression to predict oscillator values, and if our prediction crosses certain thresholds, we execute a 
 buy / sell order. 
 
-## [Predicting Turning Points in Share Prices.ipynb](https://github.com/DKClarke/AlgoTradingPublic/blob/main/Predicting%20Turning%20Points%20in%20Share%20Prices.ipynb)
+## [1. Predicting Turning Points in Share Prices.ipynb](https://github.com/DKClarke/AlgoTradingPublic/blob/main/1.%20Predicting%20Turning%20Points%20in%20Share%20Prices.ipynb)
 
-This approach is explored and backtested as a trading strategy in the 'Predicting Turning Points in Share Prices' Jupyter notebook.
+This approach is explored and backtested as a trading strategy in the '1. Predicting Turning Points in Share Prices' Jupyter notebook.
 
-The application of this backtesting to multiple timepoints to investigate whether the performance is significantly different from default strategies
-will be explored in another Jupyter notebook.
+## [2. Backtesting the Turning Point Strategy.ipynb](https://github.com/DKClarke/AlgoTradingPublic/blob/main/2.%20Backtesting%20the%20Turning%20Point%20Strategy.ipynb)
+
+In this notebook we backtest our strategy against multiple batches of time over the last 2 years so we can compute the average difference in returns between our SVR strategy and a simple buy-and-hold strategy. The reason this requires a whole other notebook, is we need to iterate over 5 million combinations to perform an exhaustive grid search!
 
 ## [extremaFuncs.py](https://github.com/DKClarke/AlgoTradingPublic/blob/main/extremaFuncs.py)
 
