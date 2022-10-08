@@ -14,6 +14,71 @@ from collections import defaultdict
 
 from multiprocessing import Pool, Process
 
+def evaluateSVRStrat(trainData, testData, extremaFilters, lookbackWindow, C, epsilon, Thigh, Tlow, commission):
+    '''
+    This function is used to train an SVR on training data (where targets and features are dictated by extremaFilters
+    and lookbackWindow) using specified hyperparameters (C and epsilon, Thigh and Tlow). This model is then used to predict 
+    test data outputs and this is put into a tradeStrategy object so we can evaluate performance in terms of returns.
+
+    This function is used ideally after we have performed an exhaustive grid search for a model trained on training data
+    as it allows us to pass the best hyperparameters here and evaluate performance on test data.
+
+    Keyword arguments:
+    trainData -- dictionary where the k,v pairs are arguments to the quandl.get function
+        Alternatively, a path to a .csv file or a pandas dataFrame
+    testData -- dictionary where the k,v pairs are arguments to the quandl.get function
+        Alternatively, a path to a .csv file or a pandas dataFrame
+    extremaFilters -- dictionary where the k,v pairs are the column and value to filter >= to in the output of
+        the getLabelledExtrema function call
+    lookbackWindow -- integer value that dictates how many of the previous prices to use for our features
+    C -- the value of C to fit to the SVR
+    epsilon -- the value of epsilon to fit to the SVR
+    Thigh --  the threshold above which we issue a sell order
+    Tlow -- the threshold below which we issue a buy order
+    commission -- a double representing the % commission we want to charge after completing each trade
+    '''
+
+    # Generate our features for this batch (train and test sets)
+    X_train, y_train, trainDates_mod = getFeaturesAndTargets(trainData, extremaFilters, lookbackWindow)
+    X_test, testDates_mod = getFeatures(testData, lookbackWindow)
+
+    # Generate the instance of our SVR and set hyperparameters according to those identified with validation set,
+    # then train on training set
+    svr = svm.SVR(kernel = 'rbf', C = C, epsilon = epsilon, cache_size = 1000)
+    svr.fit(X_train, y_train)
+    predicted = svr.predict(X_test)
+
+    # Format our test data in the way we need it to generate our tradeStrategy object with
+    dataPred = testData.copy()
+    dataPred['next_open'] = dataPred['Open'].shift(-1)
+    dataPred['temp_index'] = dataPred.index
+    dataPred['next_index'] = dataPred['temp_index'].shift(-1)
+
+    # Using getStratData to generate a dictionary that, for this set of predictions and buy/sell thresholds, tells us which indices
+    # we are going to be buying and selling at
+    actionIdx = getStratData(Tlow, Thigh, predicted)
+
+    if actionIdx is not None:
+
+        # Use all these inputs to generate a tradeStrategy object
+        dataForStrat = {
+                    'buyNextOpen' : dataPred.loc[testDates_mod].iloc[actionIdx['buyDates']]['next_open'].values  
+                    , 'buyNextIndex': dataPred.loc[testDates_mod].iloc[actionIdx['buyDates']]['next_index'].values
+                    , 'buyDates': dataPred.loc[testDates_mod].iloc[actionIdx['buyDates']].index
+                    , 'sellNextOpen' : dataPred.loc[testDates_mod].iloc[actionIdx['sellDates']]['next_open'].values 
+                    , 'sellNextIndex': dataPred.loc[testDates_mod].iloc[actionIdx['sellDates']]['next_index'].values
+                    , 'sellDates': dataPred.loc[testDates_mod].iloc[actionIdx['sellDates']].index
+                    , 'tradingEnd': (dataPred['Open'].iloc[0], dataPred['Close'].iloc[-1])
+                    , 'commission': commission
+                    , 'printArg': False
+            }
+
+        return tradeStrategy(**dataForStrat)
+
+    else:
+
+        return None
+
 def getModelDataMultAlt(argsList):
 
     # Create a progress bar
@@ -77,7 +142,7 @@ def getModelDataMult(argsList):
 
     return results
 
-def getDataArgs(trainData, valData, extremaFilter, lookbackWindow, intraHyperParameters, metaData):
+def getDataArgs(trainData, valData, extremaFilter, lookbackWindow, intraHyperParameters, commission, metaData = dict()):
     '''
     Function takes in train, validation. Takes a dictionary of how to filter our turning point
     preidction targets, a value for our lookback window, and a dictionary of all possible SVR hyperparameters
@@ -111,6 +176,7 @@ def getDataArgs(trainData, valData, extremaFilter, lookbackWindow, intraHyperPar
         metaDict = dict()
         metaDict['feature_values'] = {'lookbackWindow': lookbackWindow}
         metaDict['feature_values'].update(extremaFilter)
+        metaDict['commission'] = commission
         metaDict.update(metaData)
         
         # Compute the 'next' values for each relevant column
@@ -129,10 +195,7 @@ def getDataArgs(trainData, valData, extremaFilter, lookbackWindow, intraHyperPar
         
         argsList = [
             {
-            #'modelParams':{'C':x[0], 'epsilon':x[1]}
           'model': svm.SVR(kernel = 'rbf').set_params(C = x[0], epsilon = x[1]).fit(X_train, y_train)
-          #, 'X_train': X_train
-          #, 'y_train': y_train
           , 'X_val': X_val
           , 'valDates': valDates
           , 'dataPred': valData
@@ -149,10 +212,7 @@ def getDataArgs(trainData, valData, extremaFilter, lookbackWindow, intraHyperPar
         
         return None
 
-#def getModelData(modelParams, X_train, y_train, dataPred, ThighRaw, TlowRaw, metaData):
-#def getModelData(modelParams, X_train, y_train, X_val, valDates, dataPred, ThighRaw, TlowRaw, metaData):
 def getModelData(model, X_val, valDates, dataPred, ThighRaw, TlowRaw, metaData):
-
     '''
     Function takes parameters for an SVR, training data, validation data, and the Thigh and Tlow thresholds
     we want to attempt. Returns a tradeStrategyOld object for each threshold combination possible out of
@@ -170,8 +230,6 @@ def getModelData(model, X_val, valDates, dataPred, ThighRaw, TlowRaw, metaData):
 
     # Generate the instance of our SVR
     svr = model
-    #svr.set_params(**modelParams)
-    #svr.fit(X_train, y_train)
 
     predictions = svr.predict(X_val)
 
@@ -189,11 +247,6 @@ def getModelData(model, X_val, valDates, dataPred, ThighRaw, TlowRaw, metaData):
 
     # Remove any combinations that make no sense i.e. they're the same or we sell instead of buy
     paramListThreshClean = [x for x in paramListThresh if (x[0] != x[1]) and (x[0] > x[1])]
-
-    # Create a dictionary to save metadata for this run
-    # metaDict = dict()
-    #metaData['modelParams'] = modelParams
-    # metaDict.update(metaData)
 
     threshResults = [getStratDataOld(y[1], y[0], predicted, dataPred.rename(columns = {'Open':'open', 'Close':'close'}), metaData) for y in paramListThreshClean]
 
@@ -385,7 +438,7 @@ def getStratResults(currArgs):
     This function runs on the output of getDataArgs(). It constructs a tradeStrategy object for every combination of
     buy and sell thresholds that are reasonable for the prediction values produced by using inputs from getDataArgs().
 
-    Input args: output args from getDataArgs().
+    Input args: output dictionary from getDataArgs().
     '''
     
     data = currArgs['dataPred']
